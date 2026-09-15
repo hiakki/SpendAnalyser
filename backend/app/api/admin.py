@@ -21,6 +21,7 @@ def reset_db(db: Session = Depends(get_db)) -> dict:
     db.query(models.Statement).delete()
     db.query(models.Budget).delete()
     db.query(models.Rule).delete()
+    db.query(models.StatementLabelRule).delete()
     db.query(models.Category).delete()
     db.query(models.Account).delete()
     db.query(models.LLMCache).delete()
@@ -203,19 +204,25 @@ def auto_grow(
 @router.post("/reparse-merchants")
 def reparse_merchants(
     overwrite_user: bool = False,
+    account_id: int | None = None,
     db: Session = Depends(get_db),
 ) -> dict:
     """Re-extract merchant/user-label from every transaction's description and
     re-run categorization. Use this after improving parsers or adding rules.
     Won't overwrite categories the user manually set unless `overwrite_user=true`."""
     from ..parsers.utils import extract_merchant, extract_upi_metadata
-    from ..categorize.service import categorize_text
+    from ..categorize.service import categorize_transaction
 
-    txns = db.query(models.Transaction).all()
+    query = db.query(models.Transaction)
+    if account_id is not None:
+        query = query.filter(models.Transaction.account_id == account_id)
+    txns = query.all()
     merchant_changed = 0
     label_set = 0
     cat_changed = 0
     for t in txns:
+        if not overwrite_user and t.category_source == "user":
+            continue
         meta = extract_upi_metadata(t.description)
         new_merchant = extract_merchant(t.description) or None
         if new_merchant and new_merchant != t.merchant:
@@ -225,21 +232,8 @@ def reparse_merchants(
         if user_label and not t.note:
             t.note = user_label
             label_set += 1
-        if not overwrite_user and t.category_source == "user":
-            continue
-        if user_label:
-            new_cat, source = categorize_text(db, user_label)
-            if new_cat is not None and source == "rule":
-                source = "upi_label"
-            else:
-                new_cat, source = categorize_text(
-                    db, " ".join(filter(None, [user_label, t.merchant, t.description]))
-                )
-        else:
-            new_cat, source = categorize_text(
-                db, " ".join(filter(None, [t.merchant, t.description]))
-            )
-        if new_cat != t.category_id:
+        new_cat, source = categorize_transaction(db, t)
+        if new_cat != t.category_id or source != t.category_source:
             t.category_id = new_cat
             t.category_source = source
             cat_changed += 1

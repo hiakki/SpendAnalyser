@@ -46,7 +46,7 @@ def export_csv(
         query = query.filter(models.Transaction.account_id == account_id)
     if category_id is not None:
         query = query.filter(
-            models.Transaction.category_id.is_(None)
+            or_(models.Transaction.category_id.is_(None), models.Transaction.category_source == "label_review")
             if category_id == 0 else models.Transaction.category_id == category_id
         )
     if direction:

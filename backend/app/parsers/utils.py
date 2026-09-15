@@ -131,7 +131,9 @@ _BANK_CODE_HINT = re.compile(r"/(?:HDF|ICI|SBI|AXI|UTIB|YESB|KKBK|PYTM|OKHDF|OKB
 
 
 def extract_upi_metadata(description: str) -> dict:
-    """Pull structured fields out of a typical UPI narration like:
+    """Read bank-specific UPI and transfer narration fields, including remarks.
+
+    Canara narration example:
         UPI/DR/525905063541/OTTRAVELI/UTIB/**LINFO@OKAXIS/USVISA//AXI...../16/09/2025 13:08:32 - us visa
 
     Returns a dict with any of: direction, ref, receiver, vpa, purpose, user_label.
@@ -148,9 +150,31 @@ def extract_upi_metadata(description: str) -> dict:
         if label and len(label) >= 2 and not label.isdigit():
             out["user_label"] = label
 
+    parts = [p.strip() for p in s.split("/")]
+    # ICICI: UPI/receiver/VPA/remarks/bank/RRN/bank-reference.
+    # This is not the Canara DR/CR layout below: slot 6 is an opaque reference,
+    # never a purpose or merchant. Some exported VPAs are truncated, so an @
+    # is not required; the numeric RRN and distinct field positions identify it.
+    if (len(parts) >= 6 and parts[0].upper() == "UPI"
+            and parts[1].upper() not in {"DR", "CR"}
+            and re.fullmatch(r"\d{9,}", re.sub(r"\s+", "", parts[5]))):
+        out.update(narration_format="icici-upi", receiver=parts[1], ref=re.sub(r"\s+", "", parts[5]))
+        if parts[2]:
+            out["vpa"] = parts[2]
+        if parts[3]:
+            out["user_label"] = parts[3]
+        return out
+
+    # ICICI IMPS/NEFT: channel/mode/reference/remarks/counterparty/bank.
+    if (len(parts) >= 5 and [p.upper() for p in parts[:2]] in (["MMT", "IMPS"], ["BIL", "NEFT"])
+            and re.fullmatch(r"[A-Za-z]{0,4}\d{6,}", re.sub(r"\s+", "", parts[2]))):
+        out.update(narration_format="icici-transfer", receiver=parts[4], ref=re.sub(r"\s+", "", parts[2]))
+        if parts[3]:
+            out["user_label"] = parts[3]
+        return out
+
     # Tokenize on '/' for UPI-style descriptions
-    if s.upper().startswith("UPI") or s.upper().startswith("UPI/"):
-        parts = [p.strip() for p in s.split("/")]
+    if len(parts) >= 2 and parts[0].upper() == "UPI" and parts[1].upper() in {"DR", "CR"}:
         # parts[0]=UPI, parts[1]=DR/CR, parts[2]=ref, parts[3]=receiver short,
         # parts[4]=bank code, parts[5]=vpa, parts[6]=purpose
         if len(parts) >= 2 and parts[1].upper() in {"DR", "CR"}:
@@ -197,6 +221,8 @@ def extract_merchant(description: str) -> str:
     if not description:
         return ""
     meta = extract_upi_metadata(description)
+    if meta.get("narration_format", "").startswith("icici-") and meta.get("receiver"):
+        return _titleish(meta["receiver"])
     if meta.get("user_label"):
         return _titleish(meta["user_label"])
     if meta.get("purpose"):

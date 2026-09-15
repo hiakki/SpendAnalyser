@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..categorize.autogrow import autogrow_categories
-from ..categorize.service import categorize_text
+from ..categorize.service import categorize_statement_row
 from ..config import get_settings
 from ..db import get_db
 from ..parsers import parse_file
@@ -76,21 +76,10 @@ async def upload_statement(
         if db.query(models.Transaction.id).filter_by(account_id=account_id, fingerprint=fingerprint).first():
             dups += 1
             continue
-        # If the user typed a comment in their UPI/banking app, treat it as the
-        # primary categorisation signal — it's the most reliable thing we have.
-        if row.user_label:
-            cat_id, source = categorize_text(db, row.user_label)
-            if cat_id is not None and source == "rule":
-                source = "upi_label"
-            else:
-                # Fall back to full description so we don't lose merchant signal entirely.
-                cat_id, source = categorize_text(
-                    db, " ".join(filter(None, [row.user_label, row.merchant, row.description]))
-                )
-        else:
-            cat_id, source = categorize_text(
-                db, " ".join(filter(None, [row.merchant, row.description]))
-            )
+        cat_id, source = categorize_statement_row(
+            db, description=row.description, merchant=row.merchant,
+            user_label=row.user_label, direction=row.direction, account_id=account_id,
+        )
         txn = models.Transaction(
             account_id=account_id,
             posted_at=row.posted_at,

@@ -81,6 +81,30 @@ handles XLSX, including files with a mismatched extension. Both are runtime depe
 Image-only scanned PDFs still require OCR, which is not included. An unsupported text
 layout is reported separately from a PDF with no readable text.
 
+ICICI UPI, IMPS, and NEFT remarks are extracted separately from counterparties,
+bank-routing fields, and reference IDs. Imports and both recategorization actions
+use the same label-first classifier. Unrecognized explicit notes stay in Other
+with a **Needs review** source instead of being overridden by a merchant guess.
+
+Confirmed meanings can be saved through `GET/POST /rules/labels` and
+`DELETE /rules/labels/{id}`. POST accepts `account_id`, `label`, `direction`
+(`debit` or `credit`), and `category_id`; it updates an existing mapping for the
+same account, normalized label, and direction. These mappings take precedence
+over general rules, including for bank-generated notes, and stay in the local
+database. Personal names and meanings should not be hardcoded into source.
+
+After confirming mappings, use `POST /admin/reparse-merchants?account_id=ID`
+to repair extracted notes, counterparties, and automatic categories for that
+account. It preserves manual classifications and existing notes, and does not
+change dates, amounts, descriptions, or import fingerprints. Ordinary
+`POST /rules/recategorize?account_id=ID` also respects labels and manual choices.
+Both actions apply to all accounts when `account_id` is omitted.
+
+Built-in keyword rules match word boundaries; custom substring and regex rules
+retain their configured behavior. Auto-generated merchant rules respect payment
+direction. Legacy built-in rules that equated a bare loan reference or person
+name with lending are ignored; borrowing and repayment require confirmation.
+
 Parsed transactions carry a fingerprint based on their account, date, amount,
 and normalized description so overlapping statement imports can be identified.
 Every parsed row gets:

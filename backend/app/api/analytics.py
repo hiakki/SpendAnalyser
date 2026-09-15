@@ -4,7 +4,7 @@ from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from .. import models
@@ -49,7 +49,7 @@ def summary(
         "income": round(income, 2),
         "net": round(net, 2),
         "n_transactions": n_tx,
-        "uncategorized_count": base.filter(models.Transaction.category_id.is_(None)).count(),
+        "uncategorized_count": base.filter(or_(models.Transaction.category_id.is_(None), models.Transaction.category_source == "label_review")).count(),
     }
 
 

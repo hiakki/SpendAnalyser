@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional
+from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AccountIn(BaseModel):
@@ -36,6 +36,23 @@ class RuleIn(BaseModel):
 
 
 class RuleOut(RuleIn):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LabelRuleIn(BaseModel):
+    account_id: int
+    label: str = Field(min_length=1, max_length=255)
+    direction: Literal["debit", "credit"]
+    category_id: int
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def normalize_label(cls, value):
+        return " ".join(value.split()).casefold() if isinstance(value, str) else value
+
+
+class LabelRuleOut(LabelRuleIn):
     id: int
     model_config = ConfigDict(from_attributes=True)
 

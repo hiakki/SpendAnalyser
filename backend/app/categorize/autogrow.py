@@ -51,7 +51,7 @@ def autogrow_categories(
         # treat both "Other" and unassigned as candidates
         (models.Transaction.category_id == other.id) | (models.Transaction.category_id.is_(None)),
         # A user's explicit choice of Other is still a deliberate category.
-        (models.Transaction.category_source != "user") | (models.Transaction.category_source.is_(None)),
+        (~models.Transaction.category_source.in_(["user", "upi_label", "label_review"])) | (models.Transaction.category_source.is_(None)),
     )
     if only_account_id:
         q = q.filter(models.Transaction.account_id == only_account_id)

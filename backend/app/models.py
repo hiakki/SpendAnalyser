@@ -33,6 +33,7 @@ class Account(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="account", cascade="all,delete")
+    statement_label_rules: Mapped[list["StatementLabelRule"]] = relationship(back_populates="account", cascade="all,delete-orphan")
 
 
 class Category(Base):
@@ -44,6 +45,7 @@ class Category(Base):
     color: Mapped[Optional[str]] = mapped_column(String(16))
 
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="category")
+    statement_label_rules: Mapped[list["StatementLabelRule"]] = relationship(back_populates="category", cascade="all,delete-orphan")
 
 
 class Rule(Base):
@@ -59,6 +61,24 @@ class Rule(Base):
     note: Mapped[Optional[str]] = mapped_column(String(255))
 
     category: Mapped[Category] = relationship()
+
+
+class StatementLabelRule(Base):
+    """Confirmed label meaning for one account and money-flow direction."""
+
+    __tablename__ = "statement_label_rules"
+    __table_args__ = (
+        UniqueConstraint("account_id", "label", "direction", name="uq_statement_label_scope"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id"), nullable=False)
+    label: Mapped[str] = mapped_column(String(255), nullable=False)
+    direction: Mapped[str] = mapped_column(String(8), nullable=False)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
+
+    account: Mapped[Account] = relationship(back_populates="statement_label_rules")
+    category: Mapped[Category] = relationship(back_populates="statement_label_rules")
 
 
 class Transaction(Base):

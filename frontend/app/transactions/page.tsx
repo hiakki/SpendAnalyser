@@ -7,7 +7,8 @@ import { Search, Download, Filter, AlertTriangle, Tags, CheckCircle2 } from 'luc
 
 function sourceLabel(source?: string) {
   if (!source) return null
-  if (source === 'upi_label') return 'UPI label'
+  if (source === 'upi_label') return 'Bank note'
+  if (source === 'label_review') return 'Needs review'
   if (source === 'user') return 'Manual'
   if (source === 'rule') return 'Rule'
   if (source === 'llm') return 'LLM'
@@ -74,16 +75,17 @@ export default function TransactionsPage() {
     try {
       await api.patch(`/transactions/${id}`, { category_id: cat })
       const before = items.find((x) => x.id === id)
-      if (!before?.category_id && cat) setReviewCount((count) => Math.max(0, count - 1))
-      if (before?.category_id && !cat) setReviewCount((count) => count + 1)
-      setItems((xs) => xs.map((x) => x.id === id ? { ...x, category_id: cat ?? undefined, category_name: categories.find(c => c.id === cat)?.name, category_color: categories.find(c => c.id === cat)?.color, category_source: 'user' } : x).filter((x) => categoryId === '' || (categoryId === 0 ? !x.category_id : x.category_id === categoryId)))
+      const neededReview = before && (!before.category_id || before.category_source === 'label_review')
+      if (neededReview && cat) setReviewCount((count) => Math.max(0, count - 1))
+      if (before && !neededReview && !cat) setReviewCount((count) => count + 1)
+      setItems((xs) => xs.map((x) => x.id === id ? { ...x, category_id: cat ?? undefined, category_name: categories.find(c => c.id === cat)?.name, category_color: categories.find(c => c.id === cat)?.color, category_source: 'user' } : x).filter((x) => categoryId === '' || (categoryId === 0 ? !x.category_id || x.category_source === 'label_review' : x.category_id === categoryId)))
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not update this category.') }
     finally { setSavingId(null) }
   }
 
   const total = useMemo(() => items.reduce((a, t) => a + (t.direction === 'debit' ? Math.abs(t.amount) : 0), 0), [items])
   const income = useMemo(() => items.reduce((a, t) => a + (t.direction === 'credit' ? t.amount : 0), 0), [items])
-  const upiLabelCount = useMemo(() => items.filter((t) => t.note).length, [items])
+  const bankNoteCount = useMemo(() => items.filter((t) => t.note).length, [items])
   const hasFilters = Boolean(q || accountId || categoryId !== '' || direction || start || end)
 
   function exportUrl() {
@@ -127,7 +129,7 @@ export default function TransactionsPage() {
           <label className="text-xs text-muted">Category</label>
           <select aria-label="Category" className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value === '' ? '' : Number(e.target.value))}>
             <option value="">All</option>
-            <option value={0}>Uncategorized</option>
+            <option value={0}>Needs review</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
@@ -152,11 +154,11 @@ export default function TransactionsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <button className="rounded-lg border border-border bg-surface p-3 text-left hover:border-slate-600 transition" onClick={() => setCategoryId(0)}>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted uppercase tracking-wider">Needs category</span>
+            <span className="text-xs text-muted uppercase tracking-wider">Needs review</span>
             {reviewCount ? <AlertTriangle size={14} className="text-amber-300" /> : <CheckCircle2 size={14} className="text-emerald-300" />}
           </div>
           <div className="text-2xl font-semibold mt-1">{reviewCount}</div>
-          <div className="text-xs text-muted mt-1">Rows with no matched rule</div>
+          <div className="text-xs text-muted mt-1">Uncategorized rows and unclear bank notes</div>
         </button>
         <button className="rounded-lg border border-border bg-surface p-3 text-left hover:border-slate-600 transition" onClick={() => { setQ(''); setCategoryId(''); setDirection('debit') }}>
           <div className="flex items-center justify-between">
@@ -168,11 +170,11 @@ export default function TransactionsPage() {
         </button>
         <div className="rounded-lg border border-border bg-surface p-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted uppercase tracking-wider">UPI labels found</span>
+            <span className="text-xs text-muted uppercase tracking-wider">Bank notes found</span>
             <Tags size={14} className="text-muted" />
           </div>
-          <div className="text-2xl font-semibold mt-1">{upiLabelCount}</div>
-          <div className="text-xs text-muted mt-1">Visible rows with user labels</div>
+          <div className="text-2xl font-semibold mt-1">{bankNoteCount}</div>
+          <div className="text-xs text-muted mt-1">Visible rows with bank notes</div>
         </div>
       </div>
 
@@ -201,7 +203,7 @@ export default function TransactionsPage() {
                   <td className="table-cell max-w-[360px]" title={t.description}>
                     {t.note ? (
                       <div className="flex flex-col">
-                        <span className="text-cyan-300 font-medium" title="Your UPI label">“{t.note}”</span>
+                        <span className="text-cyan-300 font-medium" title="Bank statement note">“{t.note}”</span>
                         <span className="text-xs text-muted truncate">{t.description}</span>
                       </div>
                     ) : (

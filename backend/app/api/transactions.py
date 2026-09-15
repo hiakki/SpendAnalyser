@@ -57,7 +57,7 @@ def list_transactions(
         query = query.filter(models.Transaction.account_id == account_id)
     if category_id is not None:
         if category_id == 0:
-            query = query.filter(models.Transaction.category_id.is_(None))
+            query = query.filter(or_(models.Transaction.category_id.is_(None), models.Transaction.category_source == "label_review"))
         else:
             query = query.filter(models.Transaction.category_id == category_id)
     if direction:
