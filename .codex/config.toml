@@ -1,0 +1,5 @@
+# Project-local MCP registration; requires the globally installed graft command.
+[mcp_servers.graft]
+command = "graft"
+args = ["mcp"]
+env = { DO_NOT_TRACK = "1" }

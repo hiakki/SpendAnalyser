@@ -1,0 +1,7 @@
+# Defaults copied once into ignored project-local .gstack/config.yaml.
+telemetry: off
+artifacts_sync_mode: off
+update_check: false
+auto_upgrade: false
+checkpoint_mode: explicit
+checkpoint_push: false

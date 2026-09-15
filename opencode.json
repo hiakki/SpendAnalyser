@@ -1,0 +1,13 @@
+{
+  "mcp": {
+    "graft": {
+      "type": "local",
+      "environment": { "DO_NOT_TRACK": "1" },
+      "command": [
+        "graft",
+        "mcp"
+      ],
+      "enabled": true
+    }
+  }
+}

@@ -1,0 +1,35 @@
+# Private financial data and local credentials
+.env
+.env.*
+!.env.example
+backend/data/
+backend/samples/
+uploads/
+*.db
+*.db-*
+*.sqlite*
+*.pdf
+*.xls
+*.xlsx
+*.csv
+
+# Dependencies, generated output, and local runtime state
+node_modules/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.next*/
+next-env.d.ts
+*.tsbuildinfo
+.server/
+.gstack/
+.artifacts/
+.cache/
+output/
+graft/
+.DS_Store
+*.log
+
+# Machine-specific settings
+.claude/settings.local.json

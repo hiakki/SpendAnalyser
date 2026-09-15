@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { color-scheme: light; }
+body { background: #f6f5f0; color: #25352c; font-family: 'Avenir Next', Avenir, 'Segoe UI', sans-serif; font-variant-numeric: tabular-nums; }
+h1 { font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif; letter-spacing: -.035em; text-wrap: balance; }
+h1.text-2xl { font-size: clamp(2rem, 3.4vw, 2.8rem); line-height: 1.15; font-weight: 500; margin-bottom: .5rem; }
+h2, h3 { letter-spacing: -.015em; }
+p { text-wrap: pretty; line-height: 1.6; }
+:focus-visible { outline: 2px solid #27634c; outline-offset: 3px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+::selection { background: #d7e7db; }
+
+/* tighter scrollbar */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #c3cbbf; border-radius: 8px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+.card {
+  @apply bg-surface border border-border rounded-xl p-5 shadow-card;
+}
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-surface border border-border;
+  min-height: 42px; transition: background-color 160ms, border-color 160ms, transform 160ms;
+}
+.btn-primary {
+  background: #27634c; color: #fff; border-color: #27634c;
+}
+.btn-ghost {
+  @apply bg-transparent border-transparent hover:bg-surface2;
+}
+.input {
+  @apply bg-surface border border-border rounded-lg px-3 py-2.5 text-sm;
+  min-width: 0; min-height: 42px; max-width: 100%;
+}
+.chip {
+  @apply inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium
+         border border-border bg-surface2;
+}
+.kpi {
+  @apply card flex flex-col gap-3;
+}
+.kpi-label { @apply text-xs text-muted; font-weight: 600; letter-spacing: .035em; }
+.kpi-value { font-size: clamp(1.4rem, 2.5vw, 2.15rem); font-weight: 600; letter-spacing: -.045em; line-height: 1.2; overflow-wrap: anywhere; }
+.table-cell { @apply px-3 py-3 text-sm align-middle; }
+.btn:hover { background: #eeeee6; border-color: #aab9aa; }
+.btn-primary:hover { background: #1e503c; border-color: #1e503c; }
+.btn:active:not(:disabled) { transform: translateY(1px); }
+.input:focus { border-color: #27634c; }
+.input.pl-8 { padding-left: 2.25rem; }
+.page-eyebrow { @apply text-xs text-muted; letter-spacing: .15em; text-transform: uppercase; font-weight: 600; }
+.notice { @apply rounded-lg border border-border bg-surface2 p-4 text-sm; }
+.app-shell { display: flex; min-height: 100dvh; }
+.app-sidebar { width: 224px; flex-shrink: 0; position: sticky; top: 0; height: 100dvh; background: #f0f1e9; border-right: 1px solid #dfe2d9; display: flex; flex-direction: column; padding: 28px 16px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 12px 32px; }
+.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: #27634c; color: #fff; }
+.brand-name { font-size: 22px; font-weight: 600; letter-spacing: -.06em; }
+.nav-link { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; color: #657064; transition: background-color 160ms, color 160ms; }
+.nav-link:hover { background: #e6eadf; color: #25352c; }
+.nav-link[aria-current='page'] { background: #dfe9dc; color: #24573f; font-weight: 600; }
+.app-main { min-width: 0; flex: 1; max-width: 1440px; padding: 36px 40px 64px; margin-inline: auto; }
+.workspace-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 22px; margin-bottom: 30px; border-bottom: 1px solid #dfe2d9; font-size: 12px; color: #657064; }
+.skip-link { position: fixed; top: 8px; left: 8px; transform: translateY(-150%); z-index: 50; }
+.skip-link:focus { transform: translateY(0); }
+.onboarding { display: grid; grid-template-columns: 1.2fr 1fr; gap: 40px; align-items: center; padding: 36px; background: #edf1e7; border: 1px solid #dbe2d2; border-radius: 14px; }
+.onboarding-title { font-family: 'Iowan Old Style', Georgia, serif; font-size: clamp(1.7rem, 3vw, 2.5rem); line-height: 1.15; max-width: 420px; }
+.ledger-preview { border-top: 2px solid #83957b; }
+.ledger-preview-row { display: flex; justify-content: space-between; gap: 12px; padding: 15px 0; border-bottom: 1px solid #d3dccb; font-size: 13px; }
+.skeleton { background: #e6e9df; border-radius: 6px; animation: skeleton-pulse 1.5s ease-in-out infinite; }
+.upload-zone { padding: 56px 20px; background: #f5f7f0; border: 1px dashed #93aa89; border-radius: 10px; text-align: center; cursor: pointer; transition: background-color 160ms, border-color 160ms; }
+.upload-zone:hover, .upload-zone[data-active='true'] { background: #e8efdf; border-color: #27634c; }
+.upload-zone[aria-disabled='true'] { cursor: not-allowed; opacity: .65; }
+/* Existing screens use the same semantic palette with readable foregrounds. */
+.text-cyan-300, .text-cyan-400 { color: #27634c; }
+.text-red-300, .text-red-400 { color: #a14135; }
+.text-emerald-300, .text-emerald-400 { color: #296349; }
+.text-amber-200\/90, .text-amber-300, .text-amber-400 { color: #875b14; }
+.text-slate-100, .text-slate-200 { color: #25352c; }
+.bg-cyan-500 { background-color: #c6dbc2; }
+.hover\:bg-slate-700:hover { background-color: #e6eadf; }
+.hover\:border-slate-600:hover { border-color: #8d9f86; }
+thead { font-size: 11px; letter-spacing: .035em; }
+.recharts-default-tooltip { color: #25352c; }
+@keyframes skeleton-pulse { 50% { opacity: .55; } }
+@media (max-width: 1100px) { .app-main { padding: 28px 24px 48px; } .app-sidebar { width: 200px; } }
+@media (max-width: 767px) {
+  .app-shell { display: block; }
+  .app-sidebar { position: static; width: 100%; height: auto; padding: 16px; border-right: 0; border-bottom: 1px solid #dfe2d9; }
+  .brand { padding: 0 0 16px; }
+  .app-sidebar nav { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 6px; }
+  .nav-link { flex-shrink: 0; padding: 10px 12px; }
+  .sidebar-footer, .sidebar-label { display: none; }
+  .app-main { padding: 22px 16px 40px; }
+  .workspace-bar { margin-bottom: 24px; padding-bottom: 16px; }
+  .onboarding { grid-template-columns: 1fr; gap: 24px; padding: 24px; }
+  .card { padding: 16px; }
+  .card.p-0 { padding: 0; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
