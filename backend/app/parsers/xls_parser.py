@@ -5,16 +5,19 @@ from pathlib import Path
 import pandas as pd
 
 from .base import ParseResult
-from .table import dataframe_to_rows
+from .table import AMOUNT_COLS, CREDIT_COLS, DATE_COLS, DEBIT_COLS, DESC_COLS, _find_col, dataframe_to_rows
 
 
 def parse_xls(path: Path) -> ParseResult:
-    result = ParseResult(detected_format="xls")
-    sheets = pd.read_excel(path, sheet_name=None, dtype=str, header=None, engine=None)
+    # Pandas inspects workbook contents, so a bank's mislabeled .xls/.xlsx
+    # extension does not force the wrong reader. Both engines are dependencies.
+    with pd.ExcelFile(path) as workbook:
+        result = ParseResult(detected_format="xlsx" if workbook.engine == "openpyxl" else "xls")
+        sheets = pd.read_excel(workbook, sheet_name=None, dtype=str, header=None)
     for sheet_name, raw in sheets.items():
         if raw is None or raw.empty:
             continue
-        # detect header row: pick row with the most "header-like" tokens
+        # Require actual transaction columns, not header words in bank notices.
         header_row = _detect_header_row(raw)
         if header_row is None:
             result.warnings.append(f"sheet '{sheet_name}': no header row detected, skipping")
@@ -33,31 +36,12 @@ def parse_xls(path: Path) -> ParseResult:
     return result
 
 
-_HEADER_HINTS = {
-    "date",
-    "txn",
-    "transaction",
-    "description",
-    "narration",
-    "particulars",
-    "details",
-    "amount",
-    "debit",
-    "credit",
-    "withdrawal",
-    "deposit",
-    "balance",
-    "ref",
-}
-
-
 def _detect_header_row(df: pd.DataFrame) -> int | None:
-    best = -1
-    best_score = 0
-    for i in range(min(len(df), 25)):
-        row = df.iloc[i].astype(str).str.lower().tolist()
-        score = sum(1 for cell in row for h in _HEADER_HINTS if h in cell)
-        if score > best_score:
-            best_score = score
-            best = i
-    return best if best_score >= 2 else None
+    for i in range(min(len(df), 100)):
+        columns = [str(cell).strip() for cell in df.iloc[i].tolist() if pd.notna(cell)]
+        date_col = _find_col(columns, DATE_COLS)
+        desc_col = _find_col(columns, DESC_COLS)
+        amount_col = _find_col(columns, DEBIT_COLS | CREDIT_COLS | AMOUNT_COLS)
+        if date_col and desc_col and amount_col and len({date_col, desc_col, amount_col}) == 3:
+            return i
+    return None

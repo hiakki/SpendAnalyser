@@ -1,6 +1,6 @@
 # Spend Analyser
 
-A local-first personal finance app. Drop in bank or credit-card statements (PDF / XLS / CSV),
+A local-first personal finance app. Drop in bank or credit-card statements (PDF / XLS / XLSX / CSV),
 get them parsed, auto-categorized (rules + optional LLM), and explore via dashboards,
 budgets, recurring-subscription detection, and anomaly flags.
 
@@ -65,13 +65,21 @@ Open <http://localhost:3000> and either:
 
 ## How the parser works
 
-Two complementary strategies inside `backend/app/parsers`:
+Complementary strategies inside `backend/app/parsers`:
 
 1. **Table extraction** — `pdfplumber.extract_tables()` for PDF, `pandas.read_excel`/`read_csv` for spreadsheets.
    For each table we auto-detect a header row containing tokens like `Date`, `Description`, `Debit`,
    `Credit`, `Amount`, then map columns to a common shape.
-2. **Text fallback** — for credit-card PDFs without proper tables, we regex over each line:
+2. **Positioned columns** — bank PDFs with a bordered heading and borderless rows use the
+   heading's date, description, withdrawal, and deposit column bounds. Wrapped descriptions
+   are preserved, and running balances are excluded from transaction amounts.
+3. **Text fallback** — for credit-card PDFs without proper tables, we regex over each line:
    `DD MMM/MM/YYYY` + free text + `amount` + optional `CR`/`DR`.
+
+Excel readers detect the workbook contents: `xlrd` handles legacy XLS and `openpyxl`
+handles XLSX, including files with a mismatched extension. Both are runtime dependencies.
+Image-only scanned PDFs still require OCR, which is not included. An unsupported text
+layout is reported separately from a PDF with no readable text.
 
 Parsed transactions carry a fingerprint based on their account, date, amount,
 and normalized description so overlapping statement imports can be identified.
@@ -185,11 +193,16 @@ for skill lifecycle commands. Read the applicable skill before running it.
 
 ```bash
 cd backend
+.venv/bin/python -m pip install -r requirements-dev.txt
 .venv/bin/python -m unittest discover -s tests -v
 cd ../frontend
 npm run lint
 SPENDA_NEXT_DIST_DIR=.next-qa npm run build
 ```
+
+The backend suite generates real XLS, XLSX, and multi-page PDF fixtures and checks
+multipart uploads, debit/credit amounts, wrapped descriptions, and duplicate reimports.
+Development dependencies add fixture writers; production only needs `requirements.txt`.
 
 `SPENDA_NEXT_DIST_DIR` selects a separate Next.js output directory. For full QA,
 use a synthetic database under ignored `output/`, override `SPENDA_DB_URL` and

@@ -15,7 +15,7 @@
 - `scripts/server.sh`: existing lifecycle commands. `deploy`, `quick`, and `restart` restart services; do not invoke implicitly.
 - Type check: `cd frontend && npm run lint`.
 - Production build: `cd frontend && SPENDA_NEXT_DIST_DIR=.next-qa npm run build` (keeps an existing `.next` build intact).
-- Backend regression tests: `cd backend && .venv/bin/python -m unittest discover -s tests -v`.
+- Backend regression tests: `cd backend && .venv/bin/python -m pip install -r requirements-dev.txt && .venv/bin/python -m unittest discover -s tests -v`.
 - Use synthetic test fixtures. The legacy `scripts/server.sh test` reads a private sample PDF and is not the default agent check.
 - For isolated QA use `SPENDA_DB_URL` pointing inside ignored `output/`, backend port 8107, frontend port 3107, and `NEXT_PUBLIC_BACKEND_URL=http://127.0.0.1:8107` when building/running the QA frontend.
 

@@ -8,7 +8,7 @@ import pandas as pd
 import pdfplumber
 
 from .base import ParsedRow, ParseResult
-from .table import dataframe_to_rows
+from .table import CREDIT_COLS, DATE_COLS, DEBIT_COLS, DESC_COLS, _find_col, dataframe_to_rows
 from .utils import extract_merchant, extract_upi_metadata, parse_amount, try_parse_date
 
 
@@ -24,9 +24,11 @@ def parse_pdf(path: Path, password: Optional[str] = None) -> ParseResult:
     table_rows: list[ParsedRow] = []
     text_rows: list[ParsedRow] = []
     canara_rows: list[ParsedRow] = []
+    has_text = False
 
     with pdfplumber.open(str(path), password=password) as pdf:
         first_text = (pdf.pages[0].extract_text() or "") if pdf.pages else ""
+        has_text = bool(first_text.strip())
         is_canara = _looks_like_canara(first_text)
 
         if is_canara:
@@ -42,6 +44,17 @@ def parse_pdf(path: Path, password: Optional[str] = None) -> ParseResult:
                 )
         else:
             for page_idx, page in enumerate(pdf.pages):
+                has_text = has_text or bool(page.chars)
+                # Some bank PDFs draw a grid around the headings only. Reading
+                # that grid as a table yields no data, while a text regex can
+                # mistake the trailing running balance for the payment amount.
+                positioned = _parse_header_grid_page(
+                    page, source=f"p{page_idx + 1}", log=result.log, warnings=result.warnings,
+                )
+                if positioned is not None:
+                    table_rows.extend(positioned)
+                    result.detected_format = "pdf-positioned-columns"
+                    continue
                 try:
                     tables = page.extract_tables() or []
                 except Exception as exc:  # noqa: BLE001
@@ -77,9 +90,120 @@ def parse_pdf(path: Path, password: Optional[str] = None) -> ParseResult:
     result.merge_period()
     if not merged:
         result.warnings.append(
-            "no rows extracted: PDF may be scanned image-only (OCR required) or have a format not yet supported."
+            "No transactions recognized in this text PDF. Its statement layout is not yet supported."
+            if has_text else
+            "No readable text found in this PDF. Scanned statements require OCR; upload a text PDF or Excel export."
         )
     return result
+
+
+def _parse_header_grid_page(page, *, source: str, log: list[str], warnings: list[str]) -> list[ParsedRow] | None:
+    """Use a header-only grid's actual column bounds for borderless bank rows.
+
+    None means this is not the supported layout. An empty list means the
+    financial columns were recognized but no safe rows could be extracted:
+    do not then guess amounts from the page's trailing balance column.
+    """
+    try:
+        tables = page.find_tables()
+    except Exception:
+        return None
+    layout = None
+    for table in tables:
+        if len(table.rows) != 1:
+            continue
+        columns = [" ".join((cell or "").split()) for cell in table.extract()[0]]
+        names = {
+            "date": _find_col(columns, DATE_COLS),
+            "description": _find_col(columns, DESC_COLS),
+            "debit": _find_col(columns, DEBIT_COLS),
+            "credit": _find_col(columns, CREDIT_COLS),
+        }
+        if not all(names.values()) or len(set(names.values())) != 4:
+            continue
+        cells = {name: table.rows[0].cells[columns.index(column)] for name, column in names.items()}
+        if any(cell is None for cell in cells.values()):
+            continue
+        layout = cells, table.bbox[3]
+        break
+    if layout is None:
+        return None
+    cells, header_bottom = layout
+    words = [w for w in page.extract_words() if w["top"] >= header_bottom - 1]
+
+    def in_column(word, column):
+        left, _, right, _ = cells[column]
+        center = (word["x0"] + word["x1"]) / 2
+        return left <= center < right
+
+    def lines(items):
+        grouped = []
+        for word in sorted(items, key=lambda w: (w["top"], w["x0"])):
+            if not grouped or abs(word["top"] - grouped[-1][0]["top"]) > 2:
+                grouped.append([word])
+            else:
+                grouped[-1].append(word)
+        return [sorted(line, key=lambda w: w["x0"]) for line in grouped]
+
+    anchors = []
+    for line in lines([w for w in words if in_column(w, "date")]):
+        raw = " ".join(w["text"] for w in line)
+        # Do not let dateutil turn a stray page number into a transaction date.
+        if not re.fullmatch(r"\d{1,4}[./-](?:\d{1,2}|[A-Za-z]{3,9})[./-]\d{2,4}|\d{1,2}\s+[A-Za-z]{3,9}\s+\d{2,4}", raw):
+            continue
+        parsed_date = try_parse_date(raw)
+        if parsed_date:
+            anchors.append((line[0]["top"], parsed_date, max(w["bottom"] - w["top"] for w in line)))
+    if not anchors:
+        warnings.append(f"{source}: transaction columns found but no valid dates; no amounts guessed")
+        return []
+
+    description_words = [w for w in words if in_column(w, "description")]
+    # The date and amounts can sit halfway down the description's first line.
+    # Infer each row separately: single-line and wrapped narratives can have
+    # different alignments even on the same page.
+    starts = []
+    for y, _, height in anchors:
+        nearby = [w["top"] for w in description_words if y - height <= w["top"] <= y + height]
+        starts.append(min(y, min(nearby)) if nearby else y)
+    out = []
+    for index, (y, posted_at, height) in enumerate(anchors):
+        amounts = {}
+        for column in ("debit", "credit"):
+            amount_words = sorted(
+                [w for w in words if in_column(w, column) and abs(w["top"] - y) <= 3],
+                key=lambda w: w["x0"],
+            )
+            amounts[column] = parse_amount(" ".join(w["text"] for w in amount_words))
+        debit, credit = amounts["debit"], amounts["credit"]
+        if bool(debit) == bool(credit):
+            warnings.append(f"{source}: row {index + 1} has ambiguous or empty debit/credit cells; skipped")
+            continue
+        bottom = starts[index + 1] if index + 1 < len(anchors) else page.height
+        row_lines = lines([w for w in description_words if starts[index] - 1 <= w["top"] < bottom - 1])
+        pieces = []
+        previous_y = None
+        for line in row_lines:
+            current_y = line[0]["top"]
+            if previous_y is not None and current_y - previous_y > max(20, height * 2.5):
+                break  # Keep the page footer out of the final description.
+            pieces.append(" ".join(w["text"] for w in line))
+            previous_y = current_y
+        description = " ".join(pieces).strip()
+        if not description:
+            warnings.append(f"{source}: row {index + 1} has no description; skipped")
+            continue
+        metadata = extract_upi_metadata(description)
+        out.append(ParsedRow(
+            posted_at=posted_at,
+            description=description,
+            amount=-abs(debit) if debit else abs(credit),
+            merchant=extract_merchant(description),
+            user_label=metadata.get("user_label"),
+            raw_row=description,
+        ))
+    log.append(f"{source}: positioned debit/credit columns extracted {len(out)} rows")
+    return out
 
 
 # ---------- Canara passbook ----------
